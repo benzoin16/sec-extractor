@@ -59,11 +59,17 @@ def main(
         raise typer.Exit(1)
 
     cfg: dict = {}
-    if config and config.exists():
-        with open(config, encoding="utf-8") as fh:
+    config_path = config or Path("configs/ingest.yaml")
+    if config_path.exists():
+        with open(config_path, encoding="utf-8") as fh:
             cfg = yaml.safe_load(fh) or {}
 
-    resolved_tickers = tickers or cfg.get("tickers", [])
+    raw_tickers = tickers or cfg.get("tickers", [])
+    resolved_tickers: list[str] = []
+    for item in raw_tickers:
+        for t in item.replace(",", " ").split():
+            if t.strip():
+                resolved_tickers.append(t.strip().upper())
 
     if not xbrl_map.exists():
         console.print(f"[bold red]ERROR:[/] Concept map file '{xbrl_map}' not found.")

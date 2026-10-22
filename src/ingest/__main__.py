@@ -71,11 +71,18 @@ def main(
     # Merge config file with CLI flags (CLI takes precedence).
     # -----------------------------------------------------------------
     cfg: dict = {}
-    if config and config.exists():
-        with open(config, encoding="utf-8") as fh:
+    config_path = config or Path("configs/ingest.yaml")
+    if config_path.exists():
+        with open(config_path, encoding="utf-8") as fh:
             cfg = yaml.safe_load(fh) or {}
 
-    resolved_tickers: list[str] = tickers or cfg.get("tickers", [])
+    raw_tickers = tickers or cfg.get("tickers", [])
+    resolved_tickers: list[str] = []
+    for item in raw_tickers:
+        for t in item.replace(",", " ").split():
+            if t.strip():
+                resolved_tickers.append(t.strip().upper())
+
     resolved_forms: list[str] = forms or cfg.get("forms", ["10-K", "10-Q"])
     resolved_start: str = start if start != "2019-01-01" else cfg.get("start_date", start)
     resolved_end: str = end if end != "2024-12-31" else cfg.get("end_date", end)

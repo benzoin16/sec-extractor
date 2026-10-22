@@ -1,0 +1,59 @@
+# QLoRA SFT Configuration for Qwen2.5-7B-Instruct (Default)
+# Unified schema compatible with both TRL+PEFT and Unsloth runners.
+
+model:
+  name_or_path: "Qwen/Qwen2.5-7B-Instruct"
+  torch_dtype: "bfloat16"
+  attn_implementation: "flash_attention_2"
+
+dataset:
+  train_file: "data/processed/train.jsonl"
+  val_file: "data/processed/val.jsonl"
+  max_seq_length: 4096
+  packing: false
+
+qlora:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+chat_template:
+  # Qwen2.5 ChatML format assistant start delimiter
+  response_template: "<|im_start|>assistant\n"
+
+training:
+  output_dir: "models/qwen2.5-7b-qlora"
+  num_train_epochs: 3
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 8
+  learning_rate: 0.0002
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  logging_steps: 10
+  eval_strategy: "steps"
+  eval_steps: 50
+  save_strategy: "steps"
+  save_steps: 100
+  save_total_limit: 2
+  fp16: false
+  bf16: true
+  seed: 42
+  gradient_checkpointing: true
+
+logging:
+  report_to: "wandb"  # Set to "none" if W&B is not configured
+  project_name: "edgarlens-qlora"

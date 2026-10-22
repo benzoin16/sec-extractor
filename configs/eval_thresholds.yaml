@@ -1,0 +1,19 @@
+# EdgarLENS CI Evaluation Gate Quality Thresholds
+# PRs fail automatically if evaluation metrics fall below these gates.
+
+# Global Metric Gates
+min_json_validity: 0.95
+min_overall_exact_match: 0.80
+max_hallucination_rate: 0.05
+min_null_accuracy: 0.90
+max_p95_latency_ms: 5000.0
+
+# Concept-Specific Exact Match Minimums
+concept_thresholds:
+  revenue: 0.85
+  net_income: 0.80
+  diluted_eps: 0.85
+  total_assets: 0.80
+  operating_income: 0.75
+  total_liabilities: 0.75
+  operating_cash_flow: 0.75

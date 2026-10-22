@@ -1,0 +1,21 @@
+# Dataset Generation & Split Configuration
+
+# Split Strategy:
+# For the 10-ticker prototype run, hold out 2 diverse companies (JPM: banking/financial, AMZN: retail/cloud).
+# In production with 300-500 companies, hold out ~15-20% of companies for the test split.
+test_tickers:
+  - JPM   # Bank with specialized financial tags and balance sheet structure
+  - AMZN  # E-commerce and cloud with complex operating disclosures
+
+# Latest fiscal year held out for validation (training companies only)
+val_fiscal_year: 2024
+
+# Negative example configuration:
+# 15% total negatives: 50% hard negatives (chunks with other financial tables/numbers)
+# and 50% plain text negatives (Item 1A Risk Factors, narrative MD&A).
+negative_ratio: 0.15
+hard_negative_ratio: 0.50
+
+# Output file paths
+output_dir: "data/processed"
+reports_dir: "reports"

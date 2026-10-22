@@ -1,0 +1,64 @@
+# SEC XBRL Concept Mapping Configuration
+# Defines the 7 target concepts, prioritized fallback tags, preferred units, and derivation rules.
+
+concepts:
+  revenue:
+    type: duration
+    preferred_unit: USD
+    tags:
+      - RevenueFromContractWithCustomerExcludingAssessedTax  # Primary ASC 606 tag
+      - SalesRevenueNet                                      # Net sales fallback
+      - Revenues                                             # Generic revenue tag
+      - SalesRevenueGoodsNet                                 # Products/goods only
+      - TotalRevenuesAndOtherIncome                          # Financial/holding companies
+    notes: "Duration metric. Covers annual (10-K), quarterly (10-Q 3mo), or YTD (10-Q 6/9mo)."
+
+  net_income:
+    type: duration
+    preferred_unit: USD
+    tags:
+      - NetIncomeLoss                                       # Primary US-GAAP net income
+      - ProfitLoss                                          # IFRS/GAAP reconciliation
+      - NetIncomeLossAvailableToCommonStockholdersBasic     # Basic common stockholders
+    notes: "Duration metric."
+
+  diluted_eps:
+    type: duration
+    preferred_unit: "USD/shares"
+    tags:
+      - EarningsPerShareDiluted                             # Diluted earnings per share
+    notes: "Duration metric with USD/shares unit."
+
+  total_assets:
+    type: instant
+    preferred_unit: USD
+    tags:
+      - Assets                                              # Primary balance sheet instant tag
+    notes: "Instant metric measured at the end of the reporting period."
+
+  operating_income:
+    type: duration
+    preferred_unit: USD
+    tags:
+      - OperatingIncomeLoss                                 # Standard operating income
+      - OperatingIncomeLossBeforeTax                        # Rare pre-tax fallback
+    notes: "Duration metric."
+
+  total_liabilities:
+    type: instant
+    preferred_unit: USD
+    tags:
+      - Liabilities                                         # Standard instant liabilities tag
+    calculation_fallback:
+      sum_tags:
+        - LiabilitiesCurrent
+        - LiabilitiesNoncurrent
+    notes: "Instant metric. If Liabilities tag missing, calculate sum of LiabilitiesCurrent + LiabilitiesNoncurrent (marked is_derived=True)."
+
+  operating_cash_flow:
+    type: duration
+    preferred_unit: USD
+    tags:
+      - NetCashProvidedByUsedInOperatingActivities          # Standard operating cash flow
+      - NetCashProvidedByUsedInOperatingActivitiesContinuingOperations
+    notes: "In 10-Qs, cash flows are almost exclusively reported as cumulative YTD."

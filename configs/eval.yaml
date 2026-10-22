@@ -1,0 +1,36 @@
+# Evaluation Harness Configuration
+
+test_dataset: "data/processed/test.jsonl"
+reports_dir: "reports"
+prompt_config: "configs/prompts/v1_zero_shot.yaml"
+
+# Generation settings (strict deterministic reproduction)
+temperature: 0.0
+seed: 42
+timeout_seconds: 60
+max_concurrency: 8
+
+# Model baselines
+models:
+  frontier:
+    name: "gpt-4o-mini"
+    provider: "openai"
+    base_url: "https://api.openai.com/v1"
+    api_key_env: "OPENAI_API_KEY"
+    pricing:
+      prompt_per_1k: 0.00015     # $0.15 per 1M tokens
+      completion_per_1k: 0.00060 # $0.60 per 1M tokens
+
+  base_7b:
+    name: "Qwen/Qwen2.5-7B-Instruct"
+    provider: "vllm"
+    base_url: "http://localhost:8000/v1"
+    api_key_env: "VLLM_API_KEY"  # Or "EMPTY"
+    pricing:
+      prompt_per_1k: 0.00020     # Estimated cloud GPU hosting cost
+      completion_per_1k: 0.00020
+
+# Metric tolerances
+tolerances:
+  dollar_relative_tolerance: 0.005  # 0.5% relative error allowed for rounding (e.g. $383,285M vs $383,285,000,000)
+  eps_absolute_tolerance: 0.02      # +/- $0.02 EPS float tolerance

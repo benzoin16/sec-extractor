@@ -1,0 +1,100 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Request Latency (P50, P95, P99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(sec_extractor_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P50 Latency"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(sec_extractor_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P95 Latency"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(sec_extractor_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P99 Latency"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" }
+        }
+      }
+    },
+    {
+      "title": "Requests and Error Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(sec_extractor_requests_total{status=\"success\"}[5m]))",
+          "legendFormat": "Successful Extractions / sec"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(sec_extractor_requests_total{status=\"error\"}[5m]))",
+          "legendFormat": "Errors / sec"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(sec_extractor_requests_total{status=\"validation_warning\"}[5m]))",
+          "legendFormat": "Validation Warnings / sec"
+        }
+      ]
+    },
+    {
+      "title": "Frontier Fallback Rate (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "(sum(rate(sec_extractor_fallbacks_total[5m])) or vector(0)) / (sum(rate(sec_extractor_requests_total[5m])) > 0) * 100",
+          "legendFormat": "Fallback Rate %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": { "drawStyle": "line" }
+        }
+      }
+    },
+    {
+      "title": "Token Throughput (Tokens / sec)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(sec_extractor_tokens_total{type=\"prompt\"}[5m])) by (model)",
+          "legendFormat": "{{model}} - Prompt Tokens/s"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum(rate(sec_extractor_tokens_total{type=\"completion\"}[5m])) by (model)",
+          "legendFormat": "{{model}} - Completion Tokens/s"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["edgarlens", "llmops", "serving"],
+  "time": { "from": "now-15m", "to": "now" },
+  "title": "EdgarLENS LLMOps & Serving Overview"
+}

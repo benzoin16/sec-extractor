@@ -1,0 +1,17 @@
+# SEC EDGAR Parser and Chunker Configuration
+input_dir: "data/raw"
+output_dir: "data/processed"
+
+chunking:
+  min_tokens: 1500
+  max_tokens: 3500
+  tokenizer_encoding: "cl100k_base"
+
+# Item sections to retain. Leave empty or commented to retain all sections.
+# Primary financial and operational sections for extraction:
+target_items:
+  - "item_1"    # Business
+  - "item_1a"   # Risk Factors
+  - "item_7"    # MD&A
+  - "item_7a"   # Market Risk Disclosures
+  - "item_8"    # Financial Statements and Notes

@@ -1,0 +1,150 @@
+services:
+  # -------------------------------------------------------------------------
+  # Primary API Gateway
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edgarlens-api
+    ports:
+      - "8000:8000"
+    environment:
+      - VLLM_BASE_URL=${VLLM_BASE_URL:-http://mock-model:8001/v1}
+      - VLLM_MODEL_NAME=${VLLM_MODEL_NAME:-qwen2.5-7b-instruct-sec}
+      - FRONTIER_MODEL=${FRONTIER_MODEL:-gpt-4o-mini}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-http://langfuse-web:3000}
+      - LANGFUSE_MASK_INPUT_OUTPUT=${LANGFUSE_MASK_INPUT_OUTPUT:-false}
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles: ["cpu", "gpu", "default"]
+
+  # -------------------------------------------------------------------------
+  # CPU Profile: Mock Model Server for Laptop Demos & CI
+  # -------------------------------------------------------------------------
+  mock-model:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edgarlens-mock-model
+    command: ["python", "-m", "src.serve.mock_server", "--port", "8001", "--host", "0.0.0.0"]
+    ports:
+      - "8001:8001"
+    profiles: ["cpu", "default"]
+
+  # -------------------------------------------------------------------------
+  # GPU Profile: vLLM Production Inference Engine (CUDA 12.4 + xgrammar)
+  # -------------------------------------------------------------------------
+  vllm:
+    image: vllm/vllm-openai:v0.6.3.post1
+    container_name: edgarlens-vllm
+    runtime: nvidia
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./models:/models
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    command: >
+      --model /models/qwen2.5-7b-instruct-sec
+      --guided-decoding-backend xgrammar
+      --port 8000
+      --max-model-len 4096
+      --gpu-memory-utilization 0.90
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    profiles: ["gpu"]
+
+  # -------------------------------------------------------------------------
+  # Streamlit Interactive Demo UI
+  # -------------------------------------------------------------------------
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edgarlens-ui
+    command: ["streamlit", "run", "src/serve/demo.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+    ports:
+      - "8501:8501"
+    environment:
+      - EDGARLENS_API_URL=http://api:8000
+    depends_on:
+      - api
+    profiles: ["cpu", "gpu", "default"]
+
+  # -------------------------------------------------------------------------
+  # Monitoring: Prometheus
+  # -------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: edgarlens-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    profiles: ["cpu", "gpu", "default"]
+
+  # -------------------------------------------------------------------------
+  # Monitoring: Grafana with Provisioned Dashboard
+  # -------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: edgarlens-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./configs/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./configs/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./configs/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    profiles: ["cpu", "gpu", "default"]
+
+  # -------------------------------------------------------------------------
+  # Observability: Optional Self-Hosted Langfuse Stack
+  # -------------------------------------------------------------------------
+  langfuse-db:
+    image: postgres:16-alpine
+    container_name: edgarlens-langfuse-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=langfuse
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    profiles: ["observability", "gpu"]
+
+  langfuse-web:
+    image: ghcr.io/langfuse/langfuse:2
+    container_name: edgarlens-langfuse-web
+    depends_on:
+      - langfuse-db
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@langfuse-db:5432/langfuse
+      - NEXTAUTH_URL=http://localhost:3001
+      - NEXTAUTH_SECRET=edgarlens_secret_nextauth_32chars_min
+      - SALT=edgarlens_salt_random_bytes_1234
+    profiles: ["observability", "gpu"]
+
+volumes:
+  langfuse_postgres_data:

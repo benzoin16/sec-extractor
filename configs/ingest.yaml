@@ -1,0 +1,22 @@
+# SEC EDGAR Ingest Configuration
+tickers:
+  - AAPL
+  - MSFT
+  - GOOGL
+  - AMZN
+  - NVDA
+  - META
+  - TSLA
+  - JPM
+  - V
+  - JNJ
+
+forms:
+  - 10-K
+  - 10-Q
+
+start_date: "2019-01-01"
+end_date: "2024-12-31"
+
+output_dir: "data/raw"
+rate_limit_per_second: 8

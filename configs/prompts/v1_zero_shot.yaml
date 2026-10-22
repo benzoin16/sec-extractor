@@ -1,0 +1,84 @@
+# Prompt Configuration: v1_zero_shot
+version: "v1.0"
+description: "Zero-shot financial extraction prompt expecting strictly formatted JSON output."
+
+system_prompt: |
+  You are a financial document information extractor. Extract the 7 key financial metrics from the provided SEC filing text in JSON format: revenue, net_income, diluted_eps, total_assets, operating_income, total_liabilities, operating_cash_flow.
+  For each present metric, output an object with 'value' (unscaled numeric amount) and 'period_type' ('annual', 'quarter', 'ytd', or 'instant'). If a metric is not explicitly mentioned in the text, set it to null.
+  Respond strictly with valid JSON and no markdown formatting or commentary.
+
+user_template: |
+  Extract the financial metrics from the following SEC filing text.
+
+  Filing Text:
+  ```
+  {text}
+  ```
+
+expected_schema:
+  type: object
+  properties:
+    revenue:
+      anyOf:
+        - type: object
+          properties:
+            value: {type: number}
+            period_type: {type: string, enum: ["annual", "quarter", "ytd"]}
+          required: ["value", "period_type"]
+        - type: "null"
+    net_income:
+      anyOf:
+        - type: object
+          properties:
+            value: {type: number}
+            period_type: {type: string, enum: ["annual", "quarter", "ytd"]}
+          required: ["value", "period_type"]
+        - type: "null"
+    diluted_eps:
+      anyOf:
+        - type: object
+          properties:
+            value: {type: number}
+            period_type: {type: string, enum: ["annual", "quarter", "ytd"]}
+          required: ["value", "period_type"]
+        - type: "null"
+    total_assets:
+      anyOf:
+        - type: object
+          properties:
+            value: {type: number}
+            period_type: {type: string, enum: ["instant"]}
+          required: ["value", "period_type"]
+        - type: "null"
+    operating_income:
+      anyOf:
+        - type: object
+          properties:
+            value: {type: number}
+            period_type: {type: string, enum: ["annual", "quarter", "ytd"]}
+          required: ["value", "period_type"]
+        - type: "null"
+    total_liabilities:
+      anyOf:
+        - type: object
+          properties:
+            value: {type: number}
+            period_type: {type: string, enum: ["instant"]}
+          required: ["value", "period_type"]
+        - type: "null"
+    operating_cash_flow:
+      anyOf:
+        - type: object
+          properties:
+            value: {type: number}
+            period_type: {type: string, enum: ["annual", "quarter", "ytd"]}
+          required: ["value", "period_type"]
+        - type: "null"
+  required:
+    - revenue
+    - net_income
+    - diluted_eps
+    - total_assets
+    - operating_income
+    - total_liabilities
+    - operating_cash_flow

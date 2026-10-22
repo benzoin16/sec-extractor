@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Filing index JSON: maps accession number to list of documents in the filing.
 INDEX_JSON_URL = (
-    "https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{acc_nodash}-index.json"
+    "https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/index.json"
 )
 
 # Primary document download URL.

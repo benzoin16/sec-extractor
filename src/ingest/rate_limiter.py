@@ -25,6 +25,8 @@ class SlidingWindowRateLimiter:
         self.period = period
         self._timestamps: deque[float] = deque()
         self._lock = threading.Lock()
+        self._request_count = 0
+        self._started_at: float | None = None
 
     def acquire(self) -> None:
         """Block until a request slot is available, then claim it."""
@@ -46,7 +48,22 @@ class SlidingWindowRateLimiter:
                     self._timestamps.popleft()
 
             self._timestamps.append(time.monotonic())
+            self._request_count += 1
+            if self._started_at is None:
+                self._started_at = time.monotonic()
 
     # Allow instances to be used as plain callables: rate_limiter()
     def __call__(self) -> None:
         self.acquire()
+
+    @property
+    def request_count(self) -> int:
+        return self._request_count
+
+    @property
+    def measured_rate(self) -> float:
+        """Return the average request rate since the first acquired request."""
+        if self._started_at is None:
+            return 0.0
+        elapsed = max(time.monotonic() - self._started_at, 1e-9)
+        return self._request_count / elapsed

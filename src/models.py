@@ -22,6 +22,9 @@ class FilingMeta(BaseModel):
     fiscal_year_end: str | None = Field(
         None, description="Fiscal year end as MMDD, e.g. '0930' for Sep 30"
     )
+    primary_doc: str | None = Field(
+        None, description="Primary document filename e.g. 'aapl-20230930.htm'"
+    )
 
 
 class RawDocument(BaseModel):

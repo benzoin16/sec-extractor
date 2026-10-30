@@ -58,6 +58,7 @@ def test_filing_fetcher(httpx_mock: HTTPXMock):
                 "form": ["10-K", "10-Q", "8-K"],
                 "filingDate": ["2023-10-27", "2023-08-04", "2020-01-15"],
                 "reportDate": ["2023-09-30", "2023-07-01", "2020-01-15"],
+                "primaryDocument": ["aapl-20230930.htm", "aapl-20230701.htm", "old.htm"],
             },
             "files": [],
         },
@@ -82,6 +83,7 @@ def test_filing_fetcher(httpx_mock: HTTPXMock):
     assert filings[0].accession_number == "0000320193-23-000077"
     assert filings[1].form_type == "10-K"
     assert filings[1].accession_number == "0000320193-23-000106"
+    assert filings[1].primary_doc == "aapl-20230930.htm"
 
 
 def test_downloader(tmp_path: Path, httpx_mock: HTTPXMock):
@@ -94,24 +96,15 @@ def test_downloader(tmp_path: Path, httpx_mock: HTTPXMock):
         period_of_report=date(2023, 9, 30),
     )
 
-    index_url = (
-        "https://www.sec.gov/Archives/edgar/data/0000320193/000032019323000106/"
-        "000032019323000106-index.json"
-    )
-    fake_index = {
-        "directory": {
-            "item": [
-                {"name": "aapl-20230930.htm", "type": "10-K"},
-                {"name": "filing-details.xml", "type": "XML"},
-            ]
-        }
-    }
-    httpx_mock.add_response(url=index_url, json=fake_index)
-
     doc_url = (
-        "https://www.sec.gov/Archives/edgar/data/0000320193/000032019323000106/aapl-20230930.htm"
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/aapl-20230930.htm"
     )
-    httpx_mock.add_response(url=doc_url, text="<html><body>10-K content</body></html>")
+    httpx_mock.add_response(
+        url=doc_url,
+        content=b"<html><body>10-K content</body></html>" + b" " * (100 * 1024),
+        headers={"content-type": "text/html"},
+    )
+    meta.primary_doc = "aapl-20230930.htm"
 
     with Downloader(output_dir=tmp_path, user_agent="TestApp test@example.com") as dl:
         assert not dl.is_cached(meta)
@@ -125,3 +118,32 @@ def test_downloader(tmp_path: Path, httpx_mock: HTTPXMock):
         cached_doc = dl.download(meta)
         assert cached_doc is not None
         assert cached_doc.local_path == raw_doc.local_path
+
+
+def test_downloader_rejects_small_response(tmp_path: Path, httpx_mock: HTTPXMock):
+    meta = FilingMeta(
+        cik="0000320193",
+        ticker="AAPL",
+        accession_number="0000320193-23-000106",
+        form_type="10-K",
+        filed_date=date(2023, 10, 27),
+        period_of_report=date(2023, 9, 30),
+        primary_doc="aapl-20230930.htm",
+    )
+    doc_url = (
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/"
+        "aapl-20230930.htm"
+    )
+    httpx_mock.add_response(
+        url=doc_url,
+        content=b"<html>too small</html>",
+        headers={"content-type": "text/html"},
+    )
+
+    with (
+        Downloader(output_dir=tmp_path, user_agent="TestApp test@example.com") as dl,
+        pytest.raises(ValueError, match="under 100 KiB"),
+    ):
+        dl.download(meta)
+
+    assert not (tmp_path / "0000320193" / "000032019323000106" / "primary.html").exists()

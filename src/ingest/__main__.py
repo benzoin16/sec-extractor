@@ -168,6 +168,10 @@ def main(
             )
 
     console.print(summary)
+    console.print(
+        f"HTTP requests: {rate_limiter.request_count}; "
+        f"measured rate: {rate_limiter.measured_rate:.2f} req/s"
+    )
 
 
 if __name__ == "__main__":

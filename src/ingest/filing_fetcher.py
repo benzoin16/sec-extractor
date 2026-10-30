@@ -44,6 +44,7 @@ class FilingFetcher:
             headers={"User-Agent": self.user_agent},
             timeout=30,
             follow_redirects=True,
+            event_hooks={"request": [self._on_request]},
         )
 
     def close(self) -> None:
@@ -59,6 +60,10 @@ class FilingFetcher:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _on_request(self, _: httpx.Request) -> None:
+        if self.rate_limiter:
+            self.rate_limiter()
+
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=2, max=30),
@@ -66,8 +71,6 @@ class FilingFetcher:
         reraise=True,
     )
     def _get_json(self, url: str) -> dict:
-        if self.rate_limiter:
-            self.rate_limiter()
         response = self._client.get(url)
         response.raise_for_status()
         return response.json()
@@ -94,11 +97,12 @@ class FilingFetcher:
         forms: list[str] = recent.get("form", [])
         filed_dates: list[str] = recent.get("filingDate", [])
         periods: list[str] = recent.get("reportDate", [])
+        primary_documents: list[str] = recent.get("primaryDocument", [])
 
         results: list[FilingMeta] = []
 
-        for acc, form, filed_str, period_str in zip_longest(
-            accessions, forms, filed_dates, periods, fillvalue=None
+        for acc, form, filed_str, period_str, primary_doc in zip_longest(
+            accessions, forms, filed_dates, periods, primary_documents, fillvalue=None
         ):
             if acc is None:
                 break
@@ -124,6 +128,7 @@ class FilingFetcher:
                     filed_date=filed,
                     period_of_report=period,
                     fiscal_year_end=fiscal_year_end,
+                    primary_doc=str(primary_doc) if primary_doc else None,
                 )
             )
 

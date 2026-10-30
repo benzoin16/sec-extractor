@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -13,16 +14,14 @@ from src.models import FilingMeta, RawDocument
 
 logger = logging.getLogger(__name__)
 
-# Filing index JSON: maps accession number to list of documents in the filing.
-INDEX_JSON_URL = (
-    "https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/index.json"
-)
-
 # Primary document download URL.
 DOC_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{filename}"
-
-# Document types that identify the primary 10-K / 10-Q HTML.
-_PRIMARY_DOC_TYPES = {"10-K", "10-Q", "10-K/A", "10-Q/A", "10-KSB", "10-QSB"}
+_MIN_DOCUMENT_SIZE = 100 * 1024
+_SEC_ERROR_MARKERS = (
+    "request rate threshold exceeded",
+    "your request originates from an undetected automated tool",
+    "access denied",
+)
 
 
 class Downloader:
@@ -58,6 +57,7 @@ class Downloader:
             headers={"User-Agent": self.user_agent},
             timeout=60,
             follow_redirects=True,
+            event_hooks={"request": [self._on_request]},
         )
 
     def close(self) -> None:
@@ -86,6 +86,10 @@ class Downloader:
     def _meta_json_path(self, meta: FilingMeta) -> Path:
         return self._filing_dir(meta) / "meta.json"
 
+    def _on_request(self, _: httpx.Request) -> None:
+        if self.rate_limiter:
+            self.rate_limiter()
+
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=2, max=60),
@@ -93,52 +97,9 @@ class Downloader:
         reraise=True,
     )
     def _get(self, url: str) -> httpx.Response:
-        if self.rate_limiter:
-            self.rate_limiter()
         response = self._client.get(url)
         response.raise_for_status()
         return response
-
-    def _find_primary_document(self, meta: FilingMeta) -> str | None:
-        """Return the filename of the primary HTML document in the filing index.
-
-        Strategy:
-        1. Find a document whose *type* matches the form type (10-K, 10-Q, …)
-           and whose name ends in ``.htm`` / ``.html``.
-        2. If not found, fall back to any ``.htm``/``.html`` that isn't an exhibit.
-        """
-        acc_nodash = self._acc_nodash(meta.accession_number)
-        index_url = INDEX_JSON_URL.format(cik=meta.cik, acc_nodash=acc_nodash)
-
-        try:
-            resp = self._get(index_url)
-            index_data = resp.json()
-        except Exception as exc:
-            logger.warning("Could not fetch filing index for %s: %s", meta.accession_number, exc)
-            return None
-
-        documents: list[dict] = index_data.get("directory", {}).get("item", [])
-
-        # Pass 1: exact type match + HTML extension.
-        for doc in documents:
-            dtype = doc.get("type", "")
-            dname = doc.get("name", "")
-            if dtype in _PRIMARY_DOC_TYPES and dname.lower().endswith((".htm", ".html")):
-                return dname
-
-        # Pass 2: any non-exhibit HTML.
-        for doc in documents:
-            dtype = doc.get("type", "")
-            dname = doc.get("name", "")
-            if dname.lower().endswith((".htm", ".html")) and not dtype.upper().startswith("EX-"):
-                return dname
-
-        logger.warning(
-            "No primary HTML document found in filing index for %s %s",
-            meta.ticker,
-            meta.accession_number,
-        )
-        return None
 
     # ------------------------------------------------------------------
     # Public API
@@ -161,23 +122,37 @@ class Downloader:
             logger.debug("Cache hit — skipping download: %s", primary_path)
             return RawDocument(meta=meta, local_path=primary_path)
 
-        primary_doc = self._find_primary_document(meta)
+        primary_doc = meta.primary_doc
         if not primary_doc:
-            return None
+            raise ValueError(f"Missing primaryDocument for {meta.accession_number}")
 
         acc_nodash = self._acc_nodash(meta.accession_number)
-        doc_url = DOC_URL.format(cik=meta.cik, acc_nodash=acc_nodash, filename=primary_doc)
+        cik_int = str(int(meta.cik))
+        doc_url = DOC_URL.format(cik=cik_int, acc_nodash=acc_nodash, filename=primary_doc)
 
         try:
             resp = self._get(doc_url)
         except Exception as exc:
             logger.error("Download failed for %s: %s", doc_url, exc)
-            return None
+            raise
+
+        content_type = resp.headers.get("content-type", "").lower()
+        body_lower = resp.content[:10000].lower()
+        if len(resp.content) < _MIN_DOCUMENT_SIZE:
+            raise ValueError(f"Downloaded filing is under 100 KiB: {doc_url}")
+        if not (".htm" in primary_doc.lower() or "html" in content_type):
+            raise ValueError(f"Downloaded filing is not HTML: {doc_url}")
+        if "html" not in content_type and b"<html" not in body_lower and b"<!doctype" not in body_lower:
+            raise ValueError(f"Downloaded filing is not HTML: {doc_url}")
+        if any(marker.encode() in body_lower for marker in _SEC_ERROR_MARKERS):
+            raise ValueError(f"SEC error/rate-limit response received: {doc_url}")
 
         filing_dir = self._filing_dir(meta)
         filing_dir.mkdir(parents=True, exist_ok=True)
         primary_path.write_bytes(resp.content)
-        self._meta_json_path(meta).write_text(meta.model_dump_json(indent=2), encoding="utf-8")
+        metadata = meta.model_dump(mode="json")
+        metadata["url"] = doc_url
+        self._meta_json_path(meta).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
         logger.info(
             "Downloaded  %s %s %s → %s",

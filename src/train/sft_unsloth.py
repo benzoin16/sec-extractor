@@ -6,6 +6,10 @@ Intended for single-GPU RunPod or Colab instances where Unsloth is installed.
 
 from __future__ import annotations
 
+from datasets import Dataset
+from trl import SFTConfig, SFTTrainer
+from unsloth import FastLanguageModel
+
 import json
 import logging
 import sys
@@ -68,9 +72,6 @@ def main(
         return
 
     try:
-        from datasets import Dataset
-        from trl import SFTConfig, SFTTrainer
-        from unsloth import FastLanguageModel
     except ImportError as exc:
         logger.error(
             "Unsloth is not installed in this environment: %s\n"

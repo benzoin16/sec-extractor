@@ -58,14 +58,12 @@ class CIKResolver:
             logger.debug("Loading CIK map from cache: %s", self._cache_path)
             return json.loads(self._cache_path.read_text(encoding="utf-8"))
 
-        if self.rate_limiter:
-            self.rate_limiter()
-
         logger.info("Fetching company ticker map from EDGAR…")
         with httpx.Client(
             headers={"User-Agent": self.user_agent},
             timeout=30,
             follow_redirects=True,
+            event_hooks={"request": [self._on_request]},
         ) as client:
             response = client.get(COMPANY_TICKERS_URL)
             response.raise_for_status()
@@ -74,6 +72,10 @@ class CIKResolver:
         self._cache_path.write_text(response.text, encoding="utf-8")
         logger.info("Saved CIK map to %s", self._cache_path)
         return response.json()
+
+    def _on_request(self, _: httpx.Request) -> None:
+        if self.rate_limiter:
+            self.rate_limiter()
 
     # ------------------------------------------------------------------
     # Public API
